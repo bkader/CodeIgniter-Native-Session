@@ -1,4 +1,6 @@
-<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
 /**
  * CodeIgniter Native Session Library
  *
@@ -8,11 +10,10 @@
  * @author      Bo-Yi Wu (appleboy) <appleboy.tw@gmail.com>
  * @author      Marko Martinović <marko@techytalk.info>
  */
-
 class Session
 {
     protected $sess_namespace = '';
-    protected $ci;
+    protected $CI;
     protected $store = array();
     protected $flashdata_key = 'flash';
     private $_config = array();
@@ -25,13 +26,13 @@ class Session
      *
      * @return void
      **/
-    public function __construct()
+    public function __construct($config = array())
     {
-        $this->ci = get_instance();
+        $this->CI = get_instance();
         // Default to 2 years if expiration is "0"
-        $this->_expiration = 60 * 60 * 24 * 365 * 2;
+        $this->_expiration = 63072000;
 
-        $this->initialize();
+        $this->initialize($config);
 
         // Delete 'old' flashdata (from last request)
         $this->_flashdata_sweep();
@@ -46,10 +47,8 @@ class Session
      * @access  private
      * @return void
      */
-     private function initialize()
+     private function initialize($config = array())
      {
-        $this->ci->load->config('session');
-
         $this->_config = array();
         $prefs = array(
             'sess_cookie_name',
@@ -66,12 +65,12 @@ class Session
         );
 
         foreach ($prefs as $key) {
-            $this->_config[$key] = $this->ci->config->item($key);
+            $this->_config[$key] = $this->CI->config->item($key);
         }
 
         $this->_config = array_merge(
             array(
-                'sess_namespace' => $this->ci->config->item('sess_namespace')
+                'sess_namespace' => $this->CI->config->item('sess_namespace')
             ),
             $this->_config
         );
@@ -127,12 +126,12 @@ class Session
             log_message('debug', 'Session: Expired');
             $destroy = true;
         } elseif ($this->_config['sess_match_ip'] === true && !empty($ip_address)
-            && $ip_address !== $this->ci->input->ip_address()) {
+            && $ip_address !== $this->CI->input->ip_address()) {
             // IP doesn't match - destroy
             log_message('debug', 'Session: IP address mismatch');
             $destroy = true;
         } elseif ($this->_config['sess_match_useragent'] === true && !empty($user_agent)
-            && $user_agent !== trim(substr($this->ci->input->user_agent(), 0, 50))) {
+            && $user_agent !== trim(substr($this->CI->input->user_agent(), 0, 50))) {
             // Agent doesn't match - destroy
             log_message('debug', 'Session: User Agent string mismatch');
             $destroy = true;
@@ -167,12 +166,12 @@ class Session
         // Set matching values as required
         if ($this->_config['sess_match_ip'] === true) {
             // Store user IP address
-            $_SESSION[$this->sess_namespace]['ip_address'] = $this->ci->input->ip_address();
+            $_SESSION[$this->sess_namespace]['ip_address'] = $this->CI->input->ip_address();
         }
 
         if ($this->_config['sess_match_useragent'] === true) {
             // Store user agent string
-            $_SESSION[$this->sess_namespace]['user_agent'] = trim(substr($this->ci->input->user_agent(), 0, 50));
+            $_SESSION[$this->sess_namespace]['user_agent'] = trim(substr($this->CI->input->user_agent(), 0, 50));
         }
 
         $this->store = $_SESSION[$this->sess_namespace];
@@ -197,6 +196,58 @@ class Session
         $this->sess_create();
     }
 
+    // ------------------------------------------------------------------------
+
+    /**
+     * __isset()
+     *
+     * @param   string  $key    'session_id' or a session data key
+     * @return  bool
+     */
+    public function __isset($key)
+    {
+        if ($key === 'session_id')
+        {
+            return (session_status() === PHP_SESSION_ACTIVE);
+        }
+
+        return isset($_SESSION[$key]);
+    }
+
+    // ------------------------------------------------------------------------
+
+    /**
+     * Magic __get method
+     *
+     * @param   string  $key    session_id or a session data key.
+     * @return  mixed
+     */
+    public function __get($key)
+    {
+        if (isset($_SESSION[$key]))
+        {
+            return $_SESSION[$key];
+        }
+
+        return ($key === 'session_id') ? session_id() : NULL;
+    }
+
+    // ------------------------------------------------------------------------
+
+    /**
+     * Class magic __set().
+     *
+     * @param   string  $key    Session data key
+     * @param   mixed   $value  Session data value
+     * @return  void
+     */
+    public function __set($key, $value)
+    {
+        $_SESSION[$key] = $value;
+    }
+
+    // ------------------------------------------------------------------------
+
     /**
      * Get specific user data element
      *
@@ -206,9 +257,12 @@ class Session
      */
     public function userdata($value)
     {
-        if (isset($this->store[$value])) {
+        if (isset($this->store[$value])) 
+        {
             return $this->store[$value];
-        } else {
+        } 
+        else 
+        {
             return false;
         }
     }
@@ -264,6 +318,23 @@ class Session
     {
         return $this->store;
     }
+
+    // ------------------------------------------------------------------------
+
+    /**
+     * Has userdata
+     *
+     * Legacy CI_Session compatibility method
+     *
+     * @param   string  $key    Session data key
+     * @return  bool
+     */
+    public function has_userdata($key)
+    {
+        return isset($_SESSION[$key]);
+    }
+
+    // ------------------------------------------------------------------------
 
     /**
      * Add or change flashdata, only available
